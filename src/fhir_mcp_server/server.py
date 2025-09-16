@@ -779,6 +779,37 @@ def register_mcp_tools(mcp: FastMCP) -> None:
         return await get_operation_outcome_exception()
 
 
+def register_doc_tools(mcp: FastMCP) -> None:
+    """Register simple document tools."""
+    from fhir_mcp_server.simple_docs import get_doc_store
+
+    @mcp.tool(description="Add documentation to the knowledge base")
+    async def add_documentation(
+        content: Annotated[str, Field(description="Document content")],
+        title: Annotated[str, Field(description="Document title")] = "Document"
+    ) -> Annotated[Dict[str, Any], Field(description="Add result")]:
+        """Add documentation."""
+        try:
+            doc_store = get_doc_store()
+            doc_store.add_text(content, title)
+            return {"status": "success", "title": title}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    @mcp.tool(description="Search documentation")
+    async def search_documentation(
+        query: Annotated[str, Field(description="Search query")],
+        max_results: Annotated[int, Field(description="Max results", default=5)] = 5
+    ) -> Annotated[List[Dict[str, Any]], Field(description="Search results")]:
+        """Search documentation."""
+        try:
+            doc_store = get_doc_store()
+            results = doc_store.search(query, max_results)
+            return results
+        except Exception as e:
+            return [{"error": str(e)}]
+
+
 @click.command()
 @click.option(
     "--transport",
@@ -801,14 +832,10 @@ def register_mcp_tools(mcp: FastMCP) -> None:
     show_default=True,
     help="Disable authorization between MCP client and MCP server. [default: False]",
 )
-@click.pass_context
-def main(click_ctx: click.Context, transport, log_level, disable_auth) -> int:
+def main(transport, log_level, disable_auth) -> int:
     """
     FHIR MCP Server - helping you expose any FHIR Server or API as a MCP Server.
     """
-    # Store CLI options in context for downstream access
-    click_ctx.ensure_object(dict)
-    click_ctx.obj["disable_auth"] = disable_auth
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
@@ -817,6 +844,7 @@ def main(click_ctx: click.Context, transport, log_level, disable_auth) -> int:
     try:
         mcp: FastMCP = configure_mcp_server(disable_auth)
         register_mcp_tools(mcp=mcp)
+        register_doc_tools(mcp=mcp)
         register_mcp_routes(mcp=mcp, server_provider=server_provider)
         logger.info(f"Starting FHIR MCP server with {transport} transport")
         mcp.run(transport=transport)
