@@ -796,6 +796,30 @@ def register_doc_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
+    @mcp.tool(description="Add all supported files (.pdf, .docx, .md) from a folder (regular path not in quotes) into the knowledge base by scraping their text and embedding it.")
+    async def add_files(
+        folder: Annotated[str, Field(description="Absolute path to a folder OR a single file (.pdf, .docx, .md)")]
+    ) -> Annotated[Dict[str, Any], Field(description="Add result")]:
+        """Add files from a folder using SimpleDocStore.add_docs."""
+        try:
+            from pathlib import Path
+            doc_store = get_doc_store()
+            normalized: str = folder.strip().strip("'\"")
+            base = Path(normalized).expanduser()
+            if not base.exists():
+                return {"status": "error", "error": f"Invalid path: {normalized}"}
+            exts = {".pdf", ".docx", ".md"}
+            if base.is_file():
+                files: List[str] = [str(base)] if base.suffix.lower() in exts else []
+            else:
+                files = [str(p) for p in base.rglob("*") if p.is_file() and p.suffix.lower() in exts]
+            if not files:
+                return {"status": "success", "ingested": 0}
+            doc_store.add_docs(files)
+            return {"status": "success", "ingested": len(files)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
     @mcp.tool(description="Search for anything within previously added documentation. It will default return the top 5 results.")
     async def search_documentation(
         query: Annotated[str, Field(description="Search query")],
