@@ -783,7 +783,7 @@ def register_doc_tools(mcp: FastMCP) -> None:
     """Register simple document tools."""
     from fhir_mcp_server.simple_docs import get_doc_store
 
-    @mcp.tool(description="Add documentation to the knowledge base")
+    @mcp.tool(description="Add documentation to the knowledge base by providing the content and title. This tool allows ingest of other non official fhir documentaiton (can enter best practices, specific app information, etc.)")
     async def add_documentation(
         content: Annotated[str, Field(description="Document content")],
         title: Annotated[str, Field(description="Document title")] = "Document"
@@ -796,7 +796,7 @@ def register_doc_tools(mcp: FastMCP) -> None:
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
-    @mcp.tool(description="Search documentation")
+    @mcp.tool(description="Search for anything within previously added documentation. It will default return the top 5 results.")
     async def search_documentation(
         query: Annotated[str, Field(description="Search query")],
         max_results: Annotated[int, Field(description="Max results", default=5)] = 5
