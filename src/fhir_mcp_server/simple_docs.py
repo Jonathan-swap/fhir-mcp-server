@@ -59,6 +59,52 @@ class SimpleDocStore:
         self.vector_store.persist()
         logger.info(f"Added document: {title}")
     
+    def add_docs(self, paths: List[str | Path]) -> None:
+        """Minimal file ingester that scrapes text from .pdf, .docx, and .md files and stores it like add_text."""
+        for p in paths:
+            path = Path(p)
+            if not path.exists() or not path.is_file():
+                logger.warning(f"Skipping non-file path: {path}")
+                continue
+
+            suffix = path.suffix.lower()
+            text = ""
+
+            if suffix == ".md":
+                try:
+                    text = path.read_text(encoding="utf-8", errors="ignore")
+                except Exception as exc:
+                    logger.error(f"Failed to read markdown file {path}: {exc}")
+                    continue
+            elif suffix == ".docx":
+                try:
+                    from docx import Document as DocxDocument  # type: ignore
+                    doc = DocxDocument(str(path))
+                    text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+                except Exception as exc:
+                    logger.error(
+                        f"Failed to extract text from DOCX {path}. Install python-docx. Error: {exc}"
+                    )
+                    continue
+            elif suffix == ".pdf":
+                try:
+                    import pypdf  # type: ignore
+                    reader = pypdf.PdfReader(str(path))
+                    text = "\n".join((page.extract_text() or "") for page in reader.pages)
+                except Exception as exc:
+                    logger.error(
+                        f"Failed to extract text from PDF {path}. Install pypdf. Error: {exc}"
+                    )
+                    continue
+            else:
+                logger.warning(f"Unsupported file type for {path}. Only .pdf, .docx, .md are handled.")
+                continue
+
+            if text.strip():
+                self.add_text(text=text, title=path.name)
+            else:
+                logger.warning(f"No extractable text found in {path}")
+
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """Search documents."""
         results = self.vector_store.similarity_search_with_score(query, k=k)
